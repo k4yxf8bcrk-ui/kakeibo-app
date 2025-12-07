@@ -42,6 +42,8 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
     }
     .card-subtitle {
       font-size: 12px;
@@ -147,7 +149,6 @@
       padding: 6px 12px;
       font-size: 12px;
       cursor: pointer;
-      margin-left: 8px;
     }
     table {
       width: 100%;
@@ -228,6 +229,15 @@
     .income-list-amount {
       font-variant-numeric: tabular-nums;
     }
+
+    /* サマリー右上ボタンの並び */
+    .summary-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
   </style>
 </head>
 <body>
@@ -237,13 +247,14 @@
     <section class="card">
       <div class="card-title">
         <span>今月のサマリー</span>
-        <div style="display:flex; align-items:center; gap:6px;">
+        <div class="summary-actions">
           <div>
             <label for="monthFilter" style="font-size:11px; margin-right:4px; color:#e5e7eb;">月を選択</label>
             <input type="month" id="monthFilter" />
           </div>
-          <!-- ★ 保存ボタン -->
+          <!-- 保存＆バックアップボタン -->
           <button type="button" class="btn-secondary" id="saveBtn">保存</button>
+          <button type="button" class="btn-secondary" id="backupBtn">バックアップ</button>
         </div>
       </div>
       <div class="card-subtitle">
@@ -478,6 +489,34 @@
       // "YYYY-MM-DD" -> "YYYY-MM"
       if (!dateStr || dateStr.length < 7) return "";
       return dateStr.slice(0, 7);
+    }
+
+    // ===== バックアップ JSON ダウンロード =====
+    function downloadBackup() {
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, "0");
+      const dd = String(now.getDate()).padStart(2, "0");
+
+      const backupData = {
+        version: 1,
+        exportedAt: now.toISOString(),
+        kakeiboRecords,
+        fixedMonthly,
+      };
+
+      const blob = new Blob([JSON.stringify(backupData, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `kakeibo_backup_${yyyy}-${mm}-${dd}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     }
 
     // ===== サマリー更新 =====
@@ -821,12 +860,20 @@
         // グラフは全期間の推移なのでそのまま
       });
 
-      // ★ 保存ボタン
+      // 保存ボタン
       const saveBtn = document.getElementById("saveBtn");
       if (saveBtn) {
         saveBtn.addEventListener("click", () => {
           saveData();
           alert("データを保存しました（このブラウザに保存されます）。");
+        });
+      }
+
+      // ★ バックアップボタン
+      const backupBtn = document.getElementById("backupBtn");
+      if (backupBtn) {
+        backupBtn.addEventListener("click", () => {
+          downloadBackup();
         });
       }
 
