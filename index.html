@@ -252,9 +252,12 @@
             <label for="monthFilter" style="font-size:11px; margin-right:4px; color:#e5e7eb;">月を選択</label>
             <input type="month" id="monthFilter" />
           </div>
-          <!-- 保存＆バックアップボタン -->
+          <!-- 保存＆バックアップ＆復元ボタン -->
           <button type="button" class="btn-secondary" id="saveBtn">保存</button>
           <button type="button" class="btn-secondary" id="backupBtn">バックアップ</button>
+          <button type="button" class="btn-secondary" id="restoreBtn">復元</button>
+          <!-- 復元用 隠しファイル入力 -->
+          <input type="file" id="restoreFile" accept="application/json" style="display:none;" />
         </div>
       </div>
       <div class="card-subtitle">
@@ -517,6 +520,39 @@
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+    }
+
+    // ===== バックアップ JSON から復元 =====
+    function restoreFromFile(file) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const text = ev.target.result;
+          const data = JSON.parse(text);
+
+          if (!data || !Array.isArray(data.kakeiboRecords) || !Array.isArray(data.fixedMonthly)) {
+            alert("このファイルは家計簿バックアップではない可能性があります。");
+            return;
+          }
+
+          if (!confirm("バックアップデータで現在の家計簿と固定費を上書きします。よろしいですか？")) {
+            return;
+          }
+
+          kakeiboRecords = data.kakeiboRecords;
+          fixedMonthly = data.fixedMonthly;
+          saveData();
+          renderKakeiboTable();
+          renderFixedTable();
+          updateSummary();
+          renderMonthlyChart();
+          alert("バックアップからデータを復元しました。");
+        } catch (e) {
+          console.error("復元エラー:", e);
+          alert("バックアップファイルの読み込みに失敗しました。");
+        }
+      };
+      reader.readAsText(file, "utf-8");
     }
 
     // ===== サマリー更新 =====
@@ -857,7 +893,6 @@
       monthInput.addEventListener("change", () => {
         renderKakeiboTable();
         updateSummary();
-        // グラフは全期間の推移なのでそのまま
       });
 
       // 保存ボタン
@@ -869,11 +904,28 @@
         });
       }
 
-      // ★ バックアップボタン
+      // バックアップボタン
       const backupBtn = document.getElementById("backupBtn");
       if (backupBtn) {
         backupBtn.addEventListener("click", () => {
           downloadBackup();
+        });
+      }
+
+      // 復元ボタン ＆ ファイル入力
+      const restoreBtn = document.getElementById("restoreBtn");
+      const restoreFileInput = document.getElementById("restoreFile");
+      if (restoreBtn && restoreFileInput) {
+        restoreBtn.addEventListener("click", () => {
+          restoreFileInput.click();
+        });
+        restoreFileInput.addEventListener("change", (e) => {
+          const file = e.target.files[0];
+          if (file) {
+            restoreFromFile(file);
+          }
+          // 同じファイルでも再度選べるように
+          e.target.value = "";
         });
       }
 
