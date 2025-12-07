@@ -5,7 +5,7 @@
   <title>家計簿 & 毎月の固定費 管理</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- 月ごとのグラフ用：Chart.js 読み込み -->
+  <!-- Chart.js 読み込み -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
@@ -211,6 +211,14 @@
       }
     }
 
+    /* 円グラフ用：少し高め */
+    .chart-wrapper-pie {
+      position: relative;
+      width: 100%;
+      height: 280px;
+      margin-top: 8px;
+    }
+
     /* 今月の収入内訳 表示用 */
     .income-list {
       margin-top: 4px;
@@ -382,6 +390,32 @@
       </table>
     </section>
 
+    <!-- カテゴリ別・支出の円グラフ -->
+    <section class="card">
+      <div class="card-title">
+        <span>🟢 カテゴリ別・支出の円グラフ</span>
+      </div>
+      <div class="card-subtitle">
+        選択中の月の「支出だけ」をカテゴリ別で可視化します。タップで金額と割合が表示されます。
+      </div>
+      <div class="chart-wrapper-pie">
+        <canvas id="expensePieChart"></canvas>
+      </div>
+    </section>
+
+    <!-- カテゴリ別・収入の円グラフ -->
+    <section class="card">
+      <div class="card-title">
+        <span>🔵 カテゴリ別・収入の円グラフ</span>
+      </div>
+      <div class="card-subtitle">
+        選択中の月の「収入」をカテゴリ別で表示します（給料・その他など）。タップで金額と割合。
+      </div>
+      <div class="chart-wrapper-pie">
+        <canvas id="incomePieChart"></canvas>
+      </div>
+    </section>
+
     <!-- 毎月の固定費 -->
     <section class="card">
       <div class="card-title">
@@ -455,7 +489,9 @@
     // ===== 状態管理 =====
     let kakeiboRecords = [];
     let fixedMonthly = [];
-    let monthlyChart = null; // グラフ用
+    let monthlyChart = null;      // 折れ線グラフ
+    let expensePieChart = null;   // 支出円グラフ
+    let incomePieChart = null;    // 収入円グラフ
 
     // ===== ユーティリティ =====
     function loadData() {
@@ -489,7 +525,6 @@
     }
 
     function getMonthFromDateStr(dateStr) {
-      // "YYYY-MM-DD" -> "YYYY-MM"
       if (!dateStr || dateStr.length < 7) return "";
       return dateStr.slice(0, 7);
     }
@@ -546,6 +581,8 @@
           renderFixedTable();
           updateSummary();
           renderMonthlyChart();
+          renderExpensePieChart();
+          renderIncomePieChart();
           alert("バックアップからデータを復元しました。");
         } catch (e) {
           console.error("復元エラー:", e);
@@ -563,7 +600,6 @@
       let incomeTotal = 0;
       let expenseTotal = 0;
 
-      // 収入内訳用マップ
       const incomeBreakdownMap = {};
 
       kakeiboRecords.forEach((r) => {
@@ -590,7 +626,7 @@
       document.getElementById("summaryFixed").textContent = formatYen(fixedTotal);
       document.getElementById("summaryBalance").textContent = formatYen(balance);
 
-      // 今月の収入内訳の表示更新
+      // 今月の収入内訳表示
       const incomeContainer = document.getElementById("incomeBreakdown");
       incomeContainer.innerHTML = "";
 
@@ -601,9 +637,7 @@
         span.textContent = "この月の収入データはありません。";
         incomeContainer.appendChild(span);
       } else {
-        // 金額の大きい順に並べる
         keys.sort((a, b) => incomeBreakdownMap[b] - incomeBreakdownMap[a]);
-
         keys.forEach((key) => {
           const row = document.createElement("div");
           row.className = "income-list-row";
@@ -623,9 +657,9 @@
       }
     }
 
-    // ===== 月ごとの集計（グラフ用） =====
+    // ===== 月ごとの集計（折れ線グラフ用） =====
     function calcMonthlyAggregates() {
-      const monthMap = {}; // { "2025-01": { income, expense } }
+      const monthMap = {};
 
       kakeiboRecords.forEach((r) => {
         const month = getMonthFromDateStr(r.date);
@@ -640,9 +674,8 @@
         }
       });
 
-      const months = Object.keys(monthMap).sort(); // 昇順
+      const months = Object.keys(monthMap).sort();
 
-      // 固定費は毎月同じだけかかる前提
       const fixedTotal = fixedMonthly.reduce((sum, f) => sum + f.amount, 0);
 
       const labels = [];
@@ -664,113 +697,246 @@
       return { labels, incomes, expenses, balances };
     }
 
-    // ===== 月ごとの推移グラフ描画 =====
-function renderMonthlyChart() {
-  const ctx = document.getElementById("monthlyTrendChart");
-  if (!ctx) return;
+    // ===== 月ごとの推移グラフ（折れ線＋赤字ライン） =====
+    function renderMonthlyChart() {
+      const ctx = document.getElementById("monthlyTrendChart");
+      if (!ctx) return;
 
-  const { labels, incomes, expenses, balances } = calcMonthlyAggregates();
+      const { labels, incomes, expenses, balances } = calcMonthlyAggregates();
 
-  if (!labels.length) {
-    // データがないときはグラフを消して終了
-    if (monthlyChart) {
-      monthlyChart.destroy();
-      monthlyChart = null;
-    }
-    return;
-  }
-
-  if (monthlyChart) {
-    monthlyChart.destroy();
-  }
-
-  monthlyChart = new Chart(ctx, {
-    type: "line",
-    data: {
-      labels,
-      datasets: [
-        {
-          label: "収入",
-          data: incomes,
-          borderColor: "rgba(37, 99, 235, 1)",
-          backgroundColor: "rgba(37, 99, 235, 0.15)",
-          tension: 0.3,
-          fill: false,
-        },
-        {
-          label: "支出",
-          data: expenses,
-          borderColor: "rgba(239, 68, 68, 1)",
-          backgroundColor: "rgba(239, 68, 68, 0.15)",
-          tension: 0.3,
-          fill: false,
-        },
-        {
-          label: "残り（収入−支出−固定費）",
-          data: balances,
-          borderColor: "rgba(16, 185, 129, 1)",
-          backgroundColor: "rgba(16, 185, 129, 0.15)",
-          tension: 0.3,
-          fill: false,
-        },
-        // ★ 赤字（月がマイナス）のみ強調表示するライン
-        {
-          label: "赤字（月マイナス部分）",
-          data: balances.map(v => v < 0 ? v : null),
-          borderColor: "rgba(220, 38, 38, 1)",        // 濃い赤
-          backgroundColor: "rgba(220, 38, 38, 0.3)",
-          pointBackgroundColor: "rgba(220, 38, 38, 1)",
-          borderWidth: 3,
-          pointRadius: 5,
-          tension: 0.2,
-          spanGaps: true
+      if (!labels.length) {
+        if (monthlyChart) {
+          monthlyChart.destroy();
+          monthlyChart = null;
         }
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: {
-        mode: "index",
-        intersect: false,
-      },
-      plugins: {
-        legend: {
-          labels: {
-            font: {
-              size: 11,
-            },
-          },
-        },
-        tooltip: {
-          callbacks: {
-            label: function (context) {
-              const value = context.parsed.y || 0;
-              return `${context.dataset.label}: ¥${value.toLocaleString("ja-JP")}`;
-            },
-          },
-        },
-      },
-      scales: {
-        x: {
-          ticks: {
-            font: { size: 11 },
-          },
-        },
-        y: {
-          beginAtZero: true,
-          ticks: {
-            callback: function (value) {
-              return "¥" + value.toLocaleString("ja-JP");
-            },
-            font: { size: 10 },
-          },
-        },
-      },
-    },
-  });
-}
+        return;
+      }
 
+      if (monthlyChart) {
+        monthlyChart.destroy();
+      }
+
+      monthlyChart = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            {
+              label: "収入",
+              data: incomes,
+              borderColor: "rgba(37, 99, 235, 1)",
+              backgroundColor: "rgba(37, 99, 235, 0.15)",
+              tension: 0.3,
+              fill: false,
+            },
+            {
+              label: "支出",
+              data: expenses,
+              borderColor: "rgba(239, 68, 68, 1)",
+              backgroundColor: "rgba(239, 68, 68, 0.15)",
+              tension: 0.3,
+              fill: false,
+            },
+            {
+              label: "残り（収入−支出−固定費）",
+              data: balances,
+              borderColor: "rgba(16, 185, 129, 1)",
+              backgroundColor: "rgba(16, 185, 129, 0.15)",
+              tension: 0.3,
+              fill: false,
+            },
+            {
+              label: "赤字（月マイナス部分）",
+              data: balances.map((v) => (v < 0 ? v : null)),
+              borderColor: "rgba(220, 38, 38, 1)",
+              backgroundColor: "rgba(220, 38, 38, 0.3)",
+              pointBackgroundColor: "rgba(220, 38, 38, 1)",
+              borderWidth: 3,
+              pointRadius: 5,
+              tension: 0.2,
+              spanGaps: true,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: "index",
+            intersect: false,
+          },
+          plugins: {
+            legend: {
+              labels: {
+                font: {
+                  size: 11,
+                },
+              },
+            },
+            tooltip: {
+              callbacks: {
+                label: function (context) {
+                  const value = context.parsed.y || 0;
+                  return `${context.dataset.label}: ¥${value.toLocaleString("ja-JP")}`;
+                },
+              },
+            },
+          },
+          scales: {
+            x: {
+              ticks: {
+                font: { size: 11 },
+              },
+            },
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: function (value) {
+                  return "¥" + value.toLocaleString("ja-JP");
+                },
+                font: { size: 10 },
+              },
+            },
+          },
+        },
+      });
+    }
+
+    // ===== 円グラフ：支出カテゴリ別 =====
+    function renderExpensePieChart() {
+      const ctx = document.getElementById("expensePieChart");
+      if (!ctx) return;
+
+      const monthInput = document.getElementById("monthFilter");
+      const targetMonth = monthInput.value || getCurrentMonthStr();
+
+      const expenseItems = kakeiboRecords.filter(
+        (r) => r.type === "expense" && getMonthFromDateStr(r.date) === targetMonth
+      );
+
+      if (!expenseItems.length) {
+        if (expensePieChart) {
+          expensePieChart.destroy();
+          expensePieChart = null;
+        }
+        return;
+      }
+
+      const categoryMap = {};
+      expenseItems.forEach((r) => {
+        const key = r.category || "未分類";
+        categoryMap[key] = (categoryMap[key] || 0) + r.amount;
+      });
+
+      const labels = Object.keys(categoryMap);
+      const data = labels.map((key) => categoryMap[key]);
+      const total = data.reduce((a, b) => a + b, 0);
+
+      const colors = labels.map((_, i) => `hsl(${(i * 60) % 360}, 70%, 60%)`);
+
+      if (expensePieChart) {
+        expensePieChart.destroy();
+      }
+
+      expensePieChart = new Chart(ctx, {
+        type: "pie",
+        data: {
+          labels,
+          datasets: [
+            {
+              data,
+              backgroundColor: colors,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              labels: { font: { size: 12 } },
+            },
+            tooltip: {
+              callbacks: {
+                label: function (context) {
+                  const label = context.label || "";
+                  const value = context.parsed || 0;
+                  const percent = total ? ((value / total) * 100).toFixed(1) : 0;
+                  return `${label}: ¥${value.toLocaleString("ja-JP")} (${percent}%)`;
+                },
+              },
+            },
+          },
+        },
+      });
+    }
+
+    // ===== 円グラフ：収入カテゴリ別 =====
+    function renderIncomePieChart() {
+      const ctx = document.getElementById("incomePieChart");
+      if (!ctx) return;
+
+      const monthInput = document.getElementById("monthFilter");
+      const targetMonth = monthInput.value || getCurrentMonthStr();
+
+      const incomeItems = kakeiboRecords.filter(
+        (r) => r.type === "income" && getMonthFromDateStr(r.date) === targetMonth
+      );
+
+      if (!incomeItems.length) {
+        if (incomePieChart) {
+          incomePieChart.destroy();
+          incomePieChart = null;
+        }
+        return;
+      }
+
+      const categoryMap = {};
+      incomeItems.forEach((r) => {
+        const key = r.category || "未分類";
+        categoryMap[key] = (categoryMap[key] || 0) + r.amount;
+      });
+
+      const labels = Object.keys(categoryMap);
+      const data = labels.map((key) => categoryMap[key]);
+      const total = data.reduce((a, b) => a + b, 0);
+
+      const colors = labels.map((_, i) => `hsl(${(i * 60 + 30) % 360}, 70%, 60%)`);
+
+      if (incomePieChart) {
+        incomePieChart.destroy();
+      }
+
+      incomePieChart = new Chart(ctx, {
+        type: "pie",
+        data: {
+          labels,
+          datasets: [
+            {
+              data,
+              backgroundColor: colors,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              labels: { font: { size: 12 } },
+            },
+            tooltip: {
+              callbacks: {
+                label: function (context) {
+                  const label = context.label || "";
+                  const value = context.parsed || 0;
+                  const percent = total ? ((value / total) * 100).toFixed(1) : 0;
+                  return `${label}: ¥${value.toLocaleString("ja-JP")} (${percent}%)`;
+                },
+              },
+            },
+          },
+        },
+      });
+    }
 
     // ===== 家計簿テーブル描画 =====
     function renderKakeiboTable() {
@@ -780,7 +946,6 @@ function renderMonthlyChart() {
       const monthInput = document.getElementById("monthFilter");
       const targetMonth = monthInput.value || getCurrentMonthStr();
 
-      // 選択された月のレコードだけ表示、日付降順
       const filtered = kakeiboRecords
         .filter((r) => getMonthFromDateStr(r.date) === targetMonth)
         .sort((a, b) => (a.date < b.date ? 1 : -1));
@@ -823,12 +988,13 @@ function renderMonthlyChart() {
         delBtn.className = "btn-danger";
         delBtn.textContent = "削除";
         delBtn.addEventListener("click", () => {
-          // 実データから削除
           kakeiboRecords = kakeiboRecords.filter((item) => item.id !== r.id);
           saveData();
           renderKakeiboTable();
           updateSummary();
           renderMonthlyChart();
+          renderExpensePieChart();
+          renderIncomePieChart();
         });
         tdAction.appendChild(delBtn);
 
@@ -884,6 +1050,7 @@ function renderMonthlyChart() {
           renderFixedTable();
           updateSummary();
           renderMonthlyChart();
+          // 円グラフは固定費に関係ないのでそのまま
         });
         tdAction.appendChild(delBtn);
 
@@ -900,15 +1067,16 @@ function renderMonthlyChart() {
     function init() {
       loadData();
 
-      // 月入力 初期値を今月に
       const monthInput = document.getElementById("monthFilter");
       monthInput.value = getCurrentMonthStr();
       monthInput.addEventListener("change", () => {
         renderKakeiboTable();
         updateSummary();
+        renderMonthlyChart();
+        renderExpensePieChart();
+        renderIncomePieChart();
       });
 
-      // 保存ボタン
       const saveBtn = document.getElementById("saveBtn");
       if (saveBtn) {
         saveBtn.addEventListener("click", () => {
@@ -917,7 +1085,6 @@ function renderMonthlyChart() {
         });
       }
 
-      // バックアップボタン
       const backupBtn = document.getElementById("backupBtn");
       if (backupBtn) {
         backupBtn.addEventListener("click", () => {
@@ -925,7 +1092,6 @@ function renderMonthlyChart() {
         });
       }
 
-      // 復元ボタン ＆ ファイル入力
       const restoreBtn = document.getElementById("restoreBtn");
       const restoreFileInput = document.getElementById("restoreFile");
       if (restoreBtn && restoreFileInput) {
@@ -937,12 +1103,10 @@ function renderMonthlyChart() {
           if (file) {
             restoreFromFile(file);
           }
-          // 同じファイルでも再度選べるように
           e.target.value = "";
         });
       }
 
-      // 家計簿の日付 初期値を今日に
       const dateInput = document.getElementById("kakeiboDate");
       const today = new Date();
       const y = today.getFullYear();
@@ -950,7 +1114,6 @@ function renderMonthlyChart() {
       const d = String(today.getDate()).padStart(2, "0");
       dateInput.value = `${y}-${m}-${d}`;
 
-      // フォームイベント
       const kakeiboForm = document.getElementById("kakeiboForm");
       kakeiboForm.addEventListener("submit", (e) => {
         e.preventDefault();
@@ -980,8 +1143,9 @@ function renderMonthlyChart() {
         renderKakeiboTable();
         updateSummary();
         renderMonthlyChart();
+        renderExpensePieChart();
+        renderIncomePieChart();
 
-        // 金額だけクリア
         document.getElementById("kakeiboAmount").value = "";
         document.getElementById("kakeiboMemo").value = "";
       });
@@ -1018,7 +1182,6 @@ function renderMonthlyChart() {
         document.getElementById("fixedDay").value = "";
       });
 
-      // 全リセット（注意）
       document.getElementById("resetAllBtn").addEventListener("click", () => {
         if (!confirm("家計簿と固定費のデータをすべて削除します。よろしいですか？")) return;
         kakeiboRecords = [];
@@ -1028,13 +1191,16 @@ function renderMonthlyChart() {
         renderFixedTable();
         updateSummary();
         renderMonthlyChart();
+        renderExpensePieChart();
+        renderIncomePieChart();
       });
 
-      // 初回描画
       renderKakeiboTable();
       renderFixedTable();
       updateSummary();
       renderMonthlyChart();
+      renderExpensePieChart();
+      renderIncomePieChart();
     }
 
     document.addEventListener("DOMContentLoaded", init);
