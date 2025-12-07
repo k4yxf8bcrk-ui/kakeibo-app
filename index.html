@@ -665,99 +665,112 @@
     }
 
     // ===== 月ごとの推移グラフ描画 =====
-    function renderMonthlyChart() {
-      const ctx = document.getElementById("monthlyTrendChart");
-      if (!ctx) return;
+function renderMonthlyChart() {
+  const ctx = document.getElementById("monthlyTrendChart");
+  if (!ctx) return;
 
-      const { labels, incomes, expenses, balances } = calcMonthlyAggregates();
+  const { labels, incomes, expenses, balances } = calcMonthlyAggregates();
 
-      if (!labels.length) {
-        // データがないときはグラフを消して終了
-        if (monthlyChart) {
-          monthlyChart.destroy();
-          monthlyChart = null;
-        }
-        return;
-      }
-
-      if (monthlyChart) {
-        monthlyChart.destroy();
-      }
-
-      monthlyChart = new Chart(ctx, {
-        type: "line",
-        data: {
-          labels,
-          datasets: [
-            {
-              label: "収入",
-              data: incomes,
-              borderColor: "rgba(37, 99, 235, 1)",
-              backgroundColor: "rgba(37, 99, 235, 0.15)",
-              tension: 0.3,
-              fill: false,
-            },
-            {
-              label: "支出",
-              data: expenses,
-              borderColor: "rgba(239, 68, 68, 1)",
-              backgroundColor: "rgba(239, 68, 68, 0.15)",
-              tension: 0.3,
-              fill: false,
-            },
-            {
-              label: "残り（収入−支出−固定費）",
-              data: balances,
-              borderColor: "rgba(16, 185, 129, 1)",
-              backgroundColor: "rgba(16, 185, 129, 0.15)",
-              tension: 0.3,
-              fill: false,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: {
-            mode: "index",
-            intersect: false,
-          },
-          plugins: {
-            legend: {
-              labels: {
-                font: {
-                  size: 11,
-                },
-              },
-            },
-            tooltip: {
-              callbacks: {
-                label: function (context) {
-                  const value = context.parsed.y || 0;
-                  return `${context.dataset.label}: ¥${value.toLocaleString("ja-JP")}`;
-                },
-              },
-            },
-          },
-          scales: {
-            x: {
-              ticks: {
-                font: { size: 11 },
-              },
-            },
-            y: {
-              beginAtZero: true,
-              ticks: {
-                callback: function (value) {
-                  return "¥" + value.toLocaleString("ja-JP");
-                },
-                font: { size: 10 },
-              },
-            },
-          },
-        },
-      });
+  if (!labels.length) {
+    // データがないときはグラフを消して終了
+    if (monthlyChart) {
+      monthlyChart.destroy();
+      monthlyChart = null;
     }
+    return;
+  }
+
+  if (monthlyChart) {
+    monthlyChart.destroy();
+  }
+
+  monthlyChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "収入",
+          data: incomes,
+          borderColor: "rgba(37, 99, 235, 1)",
+          backgroundColor: "rgba(37, 99, 235, 0.15)",
+          tension: 0.3,
+          fill: false,
+        },
+        {
+          label: "支出",
+          data: expenses,
+          borderColor: "rgba(239, 68, 68, 1)",
+          backgroundColor: "rgba(239, 68, 68, 0.15)",
+          tension: 0.3,
+          fill: false,
+        },
+        {
+          label: "残り（収入−支出−固定費）",
+          data: balances,
+          borderColor: "rgba(16, 185, 129, 1)",
+          backgroundColor: "rgba(16, 185, 129, 0.15)",
+          tension: 0.3,
+          fill: false,
+        },
+        // ★ 赤字（月がマイナス）のみ強調表示するライン
+        {
+          label: "赤字（月マイナス部分）",
+          data: balances.map(v => v < 0 ? v : null),
+          borderColor: "rgba(220, 38, 38, 1)",        // 濃い赤
+          backgroundColor: "rgba(220, 38, 38, 0.3)",
+          pointBackgroundColor: "rgba(220, 38, 38, 1)",
+          borderWidth: 3,
+          pointRadius: 5,
+          tension: 0.2,
+          spanGaps: true
+        }
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: "index",
+        intersect: false,
+      },
+      plugins: {
+        legend: {
+          labels: {
+            font: {
+              size: 11,
+            },
+          },
+        },
+        tooltip: {
+          callbacks: {
+            label: function (context) {
+              const value = context.parsed.y || 0;
+              return `${context.dataset.label}: ¥${value.toLocaleString("ja-JP")}`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: {
+            font: { size: 11 },
+          },
+        },
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: function (value) {
+              return "¥" + value.toLocaleString("ja-JP");
+            },
+            font: { size: 10 },
+          },
+        },
+      },
+    },
+  });
+}
+
 
     // ===== 家計簿テーブル描画 =====
     function renderKakeiboTable() {
