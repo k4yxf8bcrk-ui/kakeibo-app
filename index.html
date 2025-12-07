@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>家計簿 & 毎月の固定費 管理</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f4f6fb;
+    }
+    header {
+      background: #2563eb;
+      color: white;
+      padding: 12px 16px;
+      font-size: 20px;
+      font-weight: bold;
+      text-align: center;
+    }
+    main {
+      padding: 12px 16px 40px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 14px 16px 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+    }
+    .card-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .card-subtitle {
+      font-size: 12px;
+      color: #64748b;
+      margin-bottom: 8px;
+    }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .summary-item {
+      background: #eff6ff;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 12px;
+    }
+    .summary-label {
+      color: #64748b;
+      margin-bottom: 4px;
+    }
+    .summary-value {
+      font-weight: 700;
+      font-size: 14px;
+    }
+    @media (min-width: 720px) {
+      .summary-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+    }
+    .form-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .form-group {
+      flex: 1;
+      min-width: 120px;
+      display: flex;
+      flex-direction: column;
+      font-size: 12px;
+    }
+    label {
+      margin-bottom: 4px;
+      color: #475569;
+    }
+    input[type="text"],
+    input[type="number"],
+    input[type="date"],
+    input[type="month"],
+    select {
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      padding: 6px 8px;
+      font-size: 13px;
+      outline: none;
+      box-sizing: border-box;
+    }
+    input:focus,
+    select:focus {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.3);
+    }
+    .radio-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      font-size: 13px;
+    }
+    .btn-primary {
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 999px;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+    .btn-primary:active {
+      transform: translateY(1px);
+    }
+    .btn-danger {
+      background: #ef4444;
+      color: white;
+      border: none;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .btn-secondary {
+      background: #e2e8f0;
+      color: #0f172a;
+      border: none;
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      margin-left: 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      font-size: 12px;
+    }
+    th, td {
+      padding: 6px 4px;
+      border-bottom: 1px solid #e2e8f0;
+      text-align: left;
+      white-space: nowrap;
+    }
+    th {
+      font-weight: 600;
+      font-size: 11px;
+      color: #64748b;
+    }
+    td.amount {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .chip {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      background: #e5f3ff;
+      color: #1d4ed8;
+    }
+    .chip-expense {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+    .chip-income {
+      background: #dcfce7;
+      color: #166534;
+    }
+    .text-right {
+      text-align: right;
+    }
+    .text-muted {
+      color: #9ca3af;
+    }
+    .highlight {
+      font-weight: 700;
+      color: #0f172a;
+    }
+  </style>
+</head>
+<body>
+  <header>家計簿 & 毎月の固定費 管理</header>
+  <main>
+    <!-- 月のサマリー -->
+    <section class="card">
+      <div class="card-title">
+        <span>今月のサマリー</span>
+        <div>
+          <label for="monthFilter" style="font-size:11px; margin-right:4px; color:#e5e7eb;">月を選択</label>
+          <input type="month" id="monthFilter" />
+        </div>
+      </div>
+      <div class="card-subtitle">
+        収入・支出・固定費・残金をざっくりチェックできます。
+      </div>
+      <div class="summary-grid">
+        <div class="summary-item">
+          <div class="summary-label">収入合計</div>
+          <div class="summary-value" id="summaryIncome">¥0</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">変動支出合計</div>
+          <div class="summary-value" id="summaryExpense">¥0</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">固定費合計（登録分）</div>
+          <div class="summary-value" id="summaryFixed">¥0</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">残り（収入 − 変動 − 固定）</div>
+          <div class="summary-value" id="summaryBalance">¥0</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 家計簿入力 -->
+    <section class="card">
+      <div class="card-title">
+        <span>家計簿（収入・支出）</span>
+      </div>
+      <div class="card-subtitle">
+        その都度、日付と金額を入れて「追加」するだけ。データはブラウザに保存されます。
+      </div>
+
+      <form id="kakeiboForm">
+        <div class="form-row">
+          <div class="form-group" style="max-width: 140px;">
+            <label for="kakeiboDate">日付</label>
+            <input type="date" id="kakeiboDate" required />
+          </div>
+
+          <div class="form-group" style="max-width: 160px;">
+            <label>種別</label>
+            <div class="radio-row">
+              <label><input type="radio" name="type" value="income" checked /> 収入</label>
+              <label><input type="radio" name="type" value="expense" /> 支出</label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="kakeiboCategory">カテゴリ</label>
+            <select id="kakeiboCategory">
+              <option value="未分類">未分類</option>
+              <option value="食費">食費</option>
+              <option value="日用品">日用品</option>
+              <option value="交通">交通</option>
+              <option value="娯楽">娯楽</option>
+              <option value="光熱費">光熱費</option>
+              <option value="家賃">家賃</option>
+              <option value="通信">通信</option>
+              <option value="給料">給料</option>
+              <option value="その他">その他</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="kakeiboAmount">金額（円）</label>
+            <input type="number" id="kakeiboAmount" min="0" required />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group" style="flex:2;">
+            <label for="kakeiboMemo">メモ（任意）</label>
+            <input type="text" id="kakeiboMemo" placeholder="例：スーパー / 給料日 など" />
+          </div>
+          <div class="form-group" style="flex:0 0 auto; justify-content:flex-end; align-items:flex-end;">
+            <button type="submit" class="btn-primary">＋ 追加</button>
+          </div>
+        </div>
+      </form>
+
+      <table id="kakeiboTable">
+        <thead>
+          <tr>
+            <th>日付</th>
+            <th>種別</th>
+            <th>カテゴリ</th>
+            <th class="text-right">金額</th>
+            <th>メモ</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- JSで挿入 -->
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 毎月の固定費 -->
+    <section class="card">
+      <div class="card-title">
+        <span>毎月の固定費</span>
+      </div>
+      <div class="card-subtitle">
+        家賃・サブスク・保険など、毎月ほぼ固定でかかるものを登録しておきます。
+      </div>
+
+      <form id="fixedForm">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="fixedName">名前</label>
+            <input type="text" id="fixedName" placeholder="例：家賃 / Netflix / 保険" required />
+          </div>
+          <div class="form-group">
+            <label for="fixedCategory">カテゴリ</label>
+            <select id="fixedCategory">
+              <option value="家賃">家賃</option>
+              <option value="電気">電気</option>
+              <option value="ガス">ガス</option>
+              <option value="水道">水道</option>
+              <option value="通信">通信</option>
+              <option value="保険">保険</option>
+              <option value="サブスク">サブスク</option>
+              <option value="その他">その他</option>
+            </select>
+          </div>
+          <div class="form-group" style="max-width: 140px;">
+            <label for="fixedAmount">金額（円）</label>
+            <input type="number" id="fixedAmount" min="0" required />
+          </div>
+          <div class="form-group" style="max-width: 120px;">
+            <label for="fixedDay">引落し日</label>
+            <input type="number" id="fixedDay" min="1" max="31" placeholder="1〜31" />
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+          <button type="submit" class="btn-primary">＋ 固定費を追加</button>
+          <button type="button" class="btn-secondary" id="resetAllBtn">
+            すべてリセット（注意）
+          </button>
+        </div>
+      </form>
+
+      <table id="fixedTable">
+        <thead>
+          <tr>
+            <th>名前</th>
+            <th>カテゴリ</th>
+            <th class="text-right">金額</th>
+            <th>引落し日</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- JSで挿入 -->
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <script>
+    // ===== データ保存用キー =====
+    const STORAGE_KEYS = {
+      KAKEIBO: "kakeiboRecords_v1",
+      FIXED: "fixedMonthly_v1",
+    };
+
+    // ===== 状態管理 =====
+    let kakeiboRecords = [];
+    let fixedMonthly = [];
+
+    // ===== ユーティリティ =====
+    function loadData() {
+      try {
+        const kData = localStorage.getItem(STORAGE_KEYS.KAKEIBO);
+        const fData = localStorage.getItem(STORAGE_KEYS.FIXED);
+        kakeiboRecords = kData ? JSON.parse(kData) : [];
+        fixedMonthly = fData ? JSON.parse(fData) : [];
+      } catch (e) {
+        console.error("データ読み込みエラー", e);
+        kakeiboRecords = [];
+        fixedMonthly = [];
+      }
+    }
+
+    function saveData() {
+      localStorage.setItem(STORAGE_KEYS.KAKEIBO, JSON.stringify(kakeiboRecords));
+      localStorage.setItem(STORAGE_KEYS.FIXED, JSON.stringify(fixedMonthly));
+    }
+
+    function formatYen(num) {
+      if (isNaN(num)) return "¥0";
+      return "¥" + num.toLocaleString("ja-JP");
+    }
+
+    function getCurrentMonthStr() {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      return `${y}-${m}`;
+    }
+
+    function getMonthFromDateStr(dateStr) {
+      // "YYYY-MM-DD" -> "YYYY-MM"
+      if (!dateStr || dateStr.length < 7) return "";
+      return dateStr.slice(0, 7);
+    }
+
+    // ===== サマリー更新 =====
+    function updateSummary() {
+      const monthInput = document.getElementById("monthFilter");
+      const targetMonth = monthInput.value || getCurrentMonthStr();
+
+      let incomeTotal = 0;
+      let expenseTotal = 0;
+
+      kakeiboRecords.forEach((r) => {
+        if (getMonthFromDateStr(r.date) === targetMonth) {
+          if (r.type === "income") {
+            incomeTotal += r.amount;
+          } else {
+            expenseTotal += r.amount;
+          }
+        }
+      });
+
+      let fixedTotal = 0;
+      fixedMonthly.forEach((f) => {
+        fixedTotal += f.amount;
+      });
+
+      const balance = incomeTotal - expenseTotal - fixedTotal;
+
+      document.getElementById("summaryIncome").textContent = formatYen(incomeTotal);
+      document.getElementById("summaryExpense").textContent = formatYen(expenseTotal);
+      document.getElementById("summaryFixed").textContent = formatYen(fixedTotal);
+      document.getElementById("summaryBalance").textContent = formatYen(balance);
+    }
+
+    // ===== 家計簿テーブル描画 =====
+    function renderKakeiboTable() {
+      const tbody = document.querySelector("#kakeiboTable tbody");
+      tbody.innerHTML = "";
+
+      const monthInput = document.getElementById("monthFilter");
+      const targetMonth = monthInput.value || getCurrentMonthStr();
+
+      // 選択された月のレコードだけ表示、日付降順
+      const filtered = kakeiboRecords
+        .filter((r) => getMonthFromDateStr(r.date) === targetMonth)
+        .sort((a, b) => (a.date < b.date ? 1 : -1));
+
+      if (filtered.length === 0) {
+        const tr = document.createElement("tr");
+        const td = document.createElement("td");
+        td.colSpan = 6;
+        td.className = "text-muted";
+        td.textContent = "この月の家計簿データはまだありません。";
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+        return;
+      }
+
+      filtered.forEach((r) => {
+        const tr = document.createElement("tr");
+
+        const tdDate = document.createElement("td");
+        tdDate.textContent = r.date;
+
+        const tdType = document.createElement("td");
+        const chip = document.createElement("span");
+        chip.className = "chip " + (r.type === "income" ? "chip-income" : "chip-expense");
+        chip.textContent = r.type === "income" ? "収入" : "支出";
+        tdType.appendChild(chip);
+
+        const tdCategory = document.createElement("td");
+        tdCategory.textContent = r.category || "未分類";
+
+        const tdAmount = document.createElement("td");
+        tdAmount.className = "amount";
+        tdAmount.textContent = formatYen(r.amount);
+
+        const tdMemo = document.createElement("td");
+        tdMemo.textContent = r.memo || "";
+
+        const tdAction = document.createElement("td");
+        const delBtn = document.createElement("button");
+        delBtn.className = "btn-danger";
+        delBtn.textContent = "削除";
+        delBtn.addEventListener("click", () => {
+          // 実データから削除
+          kakeiboRecords = kakeiboRecords.filter((item) => item.id !== r.id);
+          saveData();
+          renderKakeiboTable();
+          updateSummary();
+        });
+        tdAction.appendChild(delBtn);
+
+        tr.appendChild(tdDate);
+        tr.appendChild(tdType);
+        tr.appendChild(tdCategory);
+        tr.appendChild(tdAmount);
+        tr.appendChild(tdMemo);
+        tr.appendChild(tdAction);
+        tbody.appendChild(tr);
+      });
+    }
+
+    // ===== 固定費テーブル描画 =====
+    function renderFixedTable() {
+      const tbody = document.querySelector("#fixedTable tbody");
+      tbody.innerHTML = "";
+
+      if (fixedMonthly.length === 0) {
+        const tr = document.createElement("tr");
+        const td = document.createElement("td");
+        td.colSpan = 5;
+        td.className = "text-muted";
+        td.textContent = "固定費はまだ登録されていません。";
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+        return;
+      }
+
+      fixedMonthly.forEach((f) => {
+        const tr = document.createElement("tr");
+
+        const tdName = document.createElement("td");
+        tdName.textContent = f.name;
+
+        const tdCategory = document.createElement("td");
+        tdCategory.textContent = f.category || "";
+
+        const tdAmount = document.createElement("td");
+        tdAmount.className = "amount";
+        tdAmount.textContent = formatYen(f.amount);
+
+        const tdDay = document.createElement("td");
+        tdDay.textContent = f.day ? `${f.day}日` : "-";
+
+        const tdAction = document.createElement("td");
+        const delBtn = document.createElement("button");
+        delBtn.className = "btn-danger";
+        delBtn.textContent = "削除";
+        delBtn.addEventListener("click", () => {
+          fixedMonthly = fixedMonthly.filter((item) => item.id !== f.id);
+          saveData();
+          renderFixedTable();
+          updateSummary();
+        });
+        tdAction.appendChild(delBtn);
+
+        tr.appendChild(tdName);
+        tr.appendChild(tdCategory);
+        tr.appendChild(tdAmount);
+        tr.appendChild(tdDay);
+        tr.appendChild(tdAction);
+        tbody.appendChild(tr);
+      });
+    }
+
+    // ===== 初期化 =====
+    function init() {
+      loadData();
+
+      // 月入力 初期値を今月に
+      const monthInput = document.getElementById("monthFilter");
+      monthInput.value = getCurrentMonthStr();
+      monthInput.addEventListener("change", () => {
+        renderKakeiboTable();
+        updateSummary();
+      });
+
+      // 家計簿の日付 初期値を今日に
+      const dateInput = document.getElementById("kakeiboDate");
+      const today = new Date();
+      const y = today.getFullYear();
+      const m = String(today.getMonth() + 1).padStart(2, "0");
+      const d = String(today.getDate()).padStart(2, "0");
+      dateInput.value = `${y}-${m}-${d}`;
+
+      // フォームイベント
+      const kakeiboForm = document.getElementById("kakeiboForm");
+      kakeiboForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+
+        const date = document.getElementById("kakeiboDate").value;
+        const type = document.querySelector('input[name="type"]:checked').value;
+        const category = document.getElementById("kakeiboCategory").value;
+        const amount = Number(document.getElementById("kakeiboAmount").value || 0);
+        const memo = document.getElementById("kakeiboMemo").value.trim();
+
+        if (!date || amount <= 0) {
+          alert("日付と金額を入力してください。");
+          return;
+        }
+
+        const newRecord = {
+          id: Date.now().toString() + Math.random().toString(16).slice(2),
+          date,
+          type,
+          category,
+          amount,
+          memo,
+        };
+
+        kakeiboRecords.push(newRecord);
+        saveData();
+        renderKakeiboTable();
+        updateSummary();
+
+        // 金額だけクリア
+        document.getElementById("kakeiboAmount").value = "";
+        document.getElementById("kakeiboMemo").value = "";
+      });
+
+      const fixedForm = document.getElementById("fixedForm");
+      fixedForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const name = document.getElementById("fixedName").value.trim();
+        const category = document.getElementById("fixedCategory").value;
+        const amount = Number(document.getElementById("fixedAmount").value || 0);
+        const day = Number(document.getElementById("fixedDay").value || 0);
+
+        if (!name || amount <= 0) {
+          alert("名前と金額を入力してください。");
+          return;
+        }
+
+        const newItem = {
+          id: Date.now().toString() + Math.random().toString(16).slice(2),
+          name,
+          category,
+          amount,
+          day: day || null,
+        };
+
+        fixedMonthly.push(newItem);
+        saveData();
+        renderFixedTable();
+        updateSummary();
+
+        document.getElementById("fixedName").value = "";
+        document.getElementById("fixedAmount").value = "";
+        document.getElementById("fixedDay").value = "";
+      });
+
+      // 全リセット（注意）
+      document.getElementById("resetAllBtn").addEventListener("click", () => {
+        if (!confirm("家計簿と固定費のデータをすべて削除します。よろしいですか？")) return;
+        kakeiboRecords = [];
+        fixedMonthly = [];
+        saveData();
+        renderKakeiboTable();
+        renderFixedTable();
+        updateSummary();
+      });
+
+      // 初回描画
+      renderKakeiboTable();
+      renderFixedTable();
+      updateSummary();
+    }
+
+    document.addEventListener("DOMContentLoaded", init);
+  </script>
+</body>
+</html>
