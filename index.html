@@ -5,6 +5,9 @@
   <title>家計簿 & 毎月の固定費 管理</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
+  <!-- ★ 月ごとのグラフ用：Chart.js 読み込み -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
@@ -193,6 +196,19 @@
       font-weight: 700;
       color: #0f172a;
     }
+
+    /* ★ グラフ用コンテナ */
+    .chart-wrapper {
+      position: relative;
+      width: 100%;
+      height: 260px;
+      margin-top: 8px;
+    }
+    @media (min-width: 720px) {
+      .chart-wrapper {
+        height: 280px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -227,6 +243,23 @@
           <div class="summary-label">残り（収入 − 変動 − 固定）</div>
           <div class="summary-value" id="summaryBalance">¥0</div>
         </div>
+      </div>
+    </section>
+
+    <!-- ★ 月ごとの推移グラフ -->
+    <section class="card">
+      <div class="card-title">
+        <span>📊 月ごとの推移グラフ</span>
+      </div>
+      <div class="card-subtitle">
+        月ごとの「収入」「支出」「残り」をグラフで確認できます。固定費は毎月同じ額として引いています。
+      </div>
+      <div class="chart-wrapper">
+        <canvas id="monthlyTrendChart"></canvas>
+      </div>
+      <div class="card-subtitle" style="margin-top:8px; font-size:11px;">
+        ※ 残り ＝ 収入 − 支出 − 固定費合計（登録している固定費）  
+        ※ 家計簿や固定費を追加・削除すると自動で更新されます。
       </div>
     </section>
 
@@ -377,6 +410,7 @@
     // ===== 状態管理 =====
     let kakeiboRecords = [];
     let fixedMonthly = [];
+    let monthlyChart = null; // ★ グラフ用
 
     // ===== ユーティリティ =====
     function loadData() {
@@ -446,6 +480,142 @@
       document.getElementById("summaryBalance").textContent = formatYen(balance);
     }
 
+    // ===== 月ごとの集計（グラフ用） =====
+    function calcMonthlyAggregates() {
+      const monthMap = {}; // { "2025-01": { income, expense } }
+
+      kakeiboRecords.forEach((r) => {
+        const month = getMonthFromDateStr(r.date);
+        if (!month) return;
+        if (!monthMap[month]) {
+          monthMap[month] = { income: 0, expense: 0 };
+        }
+        if (r.type === "income") {
+          monthMap[month].income += r.amount;
+        } else {
+          monthMap[month].expense += r.amount;
+        }
+      });
+
+      const months = Object.keys(monthMap).sort(); // 昇順
+
+      // 固定費は毎月同じだけかかる前提
+      const fixedTotal = fixedMonthly.reduce((sum, f) => sum + f.amount, 0);
+
+      const labels = [];
+      const incomes = [];
+      const expenses = [];
+      const balances = [];
+
+      months.forEach((m) => {
+        const income = monthMap[m].income;
+        const expense = monthMap[m].expense;
+        const balance = income - expense - fixedTotal;
+
+        labels.push(m);
+        incomes.push(income);
+        expenses.push(expense);
+        balances.push(balance);
+      });
+
+      return { labels, incomes, expenses, balances };
+    }
+
+    // ===== 月ごとの推移グラフ描画 =====
+    function renderMonthlyChart() {
+      const ctx = document.getElementById("monthlyTrendChart");
+      if (!ctx) return;
+
+      const { labels, incomes, expenses, balances } = calcMonthlyAggregates();
+
+      if (!labels.length) {
+        // データがないときはグラフを消して終了
+        if (monthlyChart) {
+          monthlyChart.destroy();
+          monthlyChart = null;
+        }
+        return;
+      }
+
+      if (monthlyChart) {
+        monthlyChart.destroy();
+      }
+
+      monthlyChart = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            {
+              label: "収入",
+              data: incomes,
+              borderColor: "rgba(37, 99, 235, 1)",
+              backgroundColor: "rgba(37, 99, 235, 0.15)",
+              tension: 0.3,
+              fill: false,
+            },
+            {
+              label: "支出",
+              data: expenses,
+              borderColor: "rgba(239, 68, 68, 1)",
+              backgroundColor: "rgba(239, 68, 68, 0.15)",
+              tension: 0.3,
+              fill: false,
+            },
+            {
+              label: "残り（収入−支出−固定費）",
+              data: balances,
+              borderColor: "rgba(16, 185, 129, 1)",
+              backgroundColor: "rgba(16, 185, 129, 0.15)",
+              tension: 0.3,
+              fill: false,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: "index",
+            intersect: false,
+          },
+          plugins: {
+            legend: {
+              labels: {
+                font: {
+                  size: 11,
+                },
+              },
+            },
+            tooltip: {
+              callbacks: {
+                label: function (context) {
+                  const value = context.parsed.y || 0;
+                  return `${context.dataset.label}: ¥${value.toLocaleString("ja-JP")}`;
+                },
+              },
+            },
+          },
+          scales: {
+            x: {
+              ticks: {
+                font: { size: 11 },
+              },
+            },
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: function (value) {
+                  return "¥" + value.toLocaleString("ja-JP");
+                },
+                font: { size: 10 },
+              },
+            },
+          },
+        },
+      });
+    }
+
     // ===== 家計簿テーブル描画 =====
     function renderKakeiboTable() {
       const tbody = document.querySelector("#kakeiboTable tbody");
@@ -502,6 +672,7 @@
           saveData();
           renderKakeiboTable();
           updateSummary();
+          renderMonthlyChart(); // ★ グラフ更新
         });
         tdAction.appendChild(delBtn);
 
@@ -556,6 +727,7 @@
           saveData();
           renderFixedTable();
           updateSummary();
+          renderMonthlyChart(); // ★ グラフ更新
         });
         tdAction.appendChild(delBtn);
 
@@ -578,6 +750,7 @@
       monthInput.addEventListener("change", () => {
         renderKakeiboTable();
         updateSummary();
+        // グラフは全期間の推移なのでここではそのまま
       });
 
       // 家計簿の日付 初期値を今日に
@@ -617,6 +790,7 @@
         saveData();
         renderKakeiboTable();
         updateSummary();
+        renderMonthlyChart(); // ★ グラフ更新
 
         // 金額だけクリア
         document.getElementById("kakeiboAmount").value = "";
@@ -648,6 +822,7 @@
         saveData();
         renderFixedTable();
         updateSummary();
+        renderMonthlyChart(); // ★ グラフ更新
 
         document.getElementById("fixedName").value = "";
         document.getElementById("fixedAmount").value = "";
@@ -663,12 +838,14 @@
         renderKakeiboTable();
         renderFixedTable();
         updateSummary();
+        renderMonthlyChart(); // ★ グラフ更新
       });
 
       // 初回描画
       renderKakeiboTable();
       renderFixedTable();
       updateSummary();
+      renderMonthlyChart(); // ★ 初回グラフ
     }
 
     document.addEventListener("DOMContentLoaded", init);
