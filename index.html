@@ -210,7 +210,7 @@
       }
     }
 
-    /* ★ 今月の収入内訳 表示用 */
+    /* 今月の収入内訳 表示用 */
     .income-list {
       margin-top: 4px;
       font-size: 11px;
@@ -237,9 +237,13 @@
     <section class="card">
       <div class="card-title">
         <span>今月のサマリー</span>
-        <div>
-          <label for="monthFilter" style="font-size:11px; margin-right:4px; color:#e5e7eb;">月を選択</label>
-          <input type="month" id="monthFilter" />
+        <div style="display:flex; align-items:center; gap:6px;">
+          <div>
+            <label for="monthFilter" style="font-size:11px; margin-right:4px; color:#e5e7eb;">月を選択</label>
+            <input type="month" id="monthFilter" />
+          </div>
+          <!-- ★ 保存ボタン -->
+          <button type="button" class="btn-secondary" id="saveBtn">保存</button>
         </div>
       </div>
       <div class="card-subtitle">
@@ -264,7 +268,7 @@
         </div>
       </div>
 
-      <!-- ★ 今月の収入内訳 -->
+      <!-- 今月の収入内訳 -->
       <div class="card-subtitle" style="margin-top:10px; margin-bottom:4px;">
         今月の収入内訳
       </div>
@@ -511,7 +515,7 @@
       document.getElementById("summaryFixed").textContent = formatYen(fixedTotal);
       document.getElementById("summaryBalance").textContent = formatYen(balance);
 
-      // ★ 今月の収入内訳の表示更新
+      // 今月の収入内訳の表示更新
       const incomeContainer = document.getElementById("incomeBreakdown");
       incomeContainer.innerHTML = "";
 
@@ -816,6 +820,15 @@
         updateSummary();
         // グラフは全期間の推移なのでそのまま
       });
+
+      // ★ 保存ボタン
+      const saveBtn = document.getElementById("saveBtn");
+      if (saveBtn) {
+        saveBtn.addEventListener("click", () => {
+          saveData();
+          alert("データを保存しました（このブラウザに保存されます）。");
+        });
+      }
 
       // 家計簿の日付 初期値を今日に
       const dateInput = document.getElementById("kakeiboDate");
