@@ -5,7 +5,7 @@
   <title>家計簿 & 毎月の固定費 管理</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- ★ 月ごとのグラフ用：Chart.js 読み込み -->
+  <!-- 月ごとのグラフ用：Chart.js 読み込み -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
@@ -197,7 +197,7 @@
       color: #0f172a;
     }
 
-    /* ★ グラフ用コンテナ */
+    /* グラフ用コンテナ */
     .chart-wrapper {
       position: relative;
       width: 100%;
@@ -208,6 +208,25 @@
       .chart-wrapper {
         height: 280px;
       }
+    }
+
+    /* ★ 今月の収入内訳 表示用 */
+    .income-list {
+      margin-top: 4px;
+      font-size: 11px;
+      color: #0f172a;
+    }
+    .income-list-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2px;
+    }
+    .income-list-label {
+      color: #64748b;
+    }
+    .income-list-amount {
+      font-variant-numeric: tabular-nums;
     }
   </style>
 </head>
@@ -244,9 +263,17 @@
           <div class="summary-value" id="summaryBalance">¥0</div>
         </div>
       </div>
+
+      <!-- ★ 今月の収入内訳 -->
+      <div class="card-subtitle" style="margin-top:10px; margin-bottom:4px;">
+        今月の収入内訳
+      </div>
+      <div id="incomeBreakdown" class="income-list">
+        <!-- JSで挿入 -->
+      </div>
     </section>
 
-    <!-- ★ 月ごとの推移グラフ -->
+    <!-- 月ごとの推移グラフ -->
     <section class="card">
       <div class="card-title">
         <span>📊 月ごとの推移グラフ</span>
@@ -410,7 +437,7 @@
     // ===== 状態管理 =====
     let kakeiboRecords = [];
     let fixedMonthly = [];
-    let monthlyChart = null; // ★ グラフ用
+    let monthlyChart = null; // グラフ用
 
     // ===== ユーティリティ =====
     function loadData() {
@@ -457,10 +484,15 @@
       let incomeTotal = 0;
       let expenseTotal = 0;
 
+      // 収入内訳用マップ
+      const incomeBreakdownMap = {};
+
       kakeiboRecords.forEach((r) => {
         if (getMonthFromDateStr(r.date) === targetMonth) {
           if (r.type === "income") {
             incomeTotal += r.amount;
+            const key = r.category || "その他";
+            incomeBreakdownMap[key] = (incomeBreakdownMap[key] || 0) + r.amount;
           } else {
             expenseTotal += r.amount;
           }
@@ -478,6 +510,38 @@
       document.getElementById("summaryExpense").textContent = formatYen(expenseTotal);
       document.getElementById("summaryFixed").textContent = formatYen(fixedTotal);
       document.getElementById("summaryBalance").textContent = formatYen(balance);
+
+      // ★ 今月の収入内訳の表示更新
+      const incomeContainer = document.getElementById("incomeBreakdown");
+      incomeContainer.innerHTML = "";
+
+      const keys = Object.keys(incomeBreakdownMap);
+      if (keys.length === 0) {
+        const span = document.createElement("span");
+        span.className = "text-muted";
+        span.textContent = "この月の収入データはありません。";
+        incomeContainer.appendChild(span);
+      } else {
+        // 金額の大きい順に並べる
+        keys.sort((a, b) => incomeBreakdownMap[b] - incomeBreakdownMap[a]);
+
+        keys.forEach((key) => {
+          const row = document.createElement("div");
+          row.className = "income-list-row";
+
+          const label = document.createElement("span");
+          label.className = "income-list-label";
+          label.textContent = key;
+
+          const amount = document.createElement("span");
+          amount.className = "income-list-amount";
+          amount.textContent = formatYen(incomeBreakdownMap[key]);
+
+          row.appendChild(label);
+          row.appendChild(amount);
+          incomeContainer.appendChild(row);
+        });
+      }
     }
 
     // ===== 月ごとの集計（グラフ用） =====
@@ -672,7 +736,7 @@
           saveData();
           renderKakeiboTable();
           updateSummary();
-          renderMonthlyChart(); // ★ グラフ更新
+          renderMonthlyChart();
         });
         tdAction.appendChild(delBtn);
 
@@ -727,7 +791,7 @@
           saveData();
           renderFixedTable();
           updateSummary();
-          renderMonthlyChart(); // ★ グラフ更新
+          renderMonthlyChart();
         });
         tdAction.appendChild(delBtn);
 
@@ -750,7 +814,7 @@
       monthInput.addEventListener("change", () => {
         renderKakeiboTable();
         updateSummary();
-        // グラフは全期間の推移なのでここではそのまま
+        // グラフは全期間の推移なのでそのまま
       });
 
       // 家計簿の日付 初期値を今日に
@@ -790,7 +854,7 @@
         saveData();
         renderKakeiboTable();
         updateSummary();
-        renderMonthlyChart(); // ★ グラフ更新
+        renderMonthlyChart();
 
         // 金額だけクリア
         document.getElementById("kakeiboAmount").value = "";
@@ -822,7 +886,7 @@
         saveData();
         renderFixedTable();
         updateSummary();
-        renderMonthlyChart(); // ★ グラフ更新
+        renderMonthlyChart();
 
         document.getElementById("fixedName").value = "";
         document.getElementById("fixedAmount").value = "";
@@ -838,14 +902,14 @@
         renderKakeiboTable();
         renderFixedTable();
         updateSummary();
-        renderMonthlyChart(); // ★ グラフ更新
+        renderMonthlyChart();
       });
 
       // 初回描画
       renderKakeiboTable();
       renderFixedTable();
       updateSummary();
-      renderMonthlyChart(); // ★ 初回グラフ
+      renderMonthlyChart();
     }
 
     document.addEventListener("DOMContentLoaded", init);
